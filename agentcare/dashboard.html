@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentCare AI — Hospital Operations Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#101827;color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;flex-wrap:wrap;gap:10px}
+.brand{font-size:22px;font-weight:800}.subtitle{font-size:12px;color:#aeb9cb;margin-top:3px}
+.header-right{display:flex;align-items:center;gap:14px;font-size:13px;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block}
+.dot.offline{background:#dc2626}
+.dot.connecting{background:#f59e0b}
+.container{max-width:1450px;margin:auto;padding:24px}
+.section-title{font-size:18px;font-weight:800;margin:28px 0 14px;display:flex;align-items:center;gap:8px}
+.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(6,1fr)}
+.card{background:#fff;border:1px solid #e5eaf1;border-radius:14px;padding:18px;box-shadow:0 3px 12px rgba(20,35,60,.05)}
+.kpi-label{font-size:12px;color:#718096}.kpi-value{font-size:27px;font-weight:800;margin-top:8px}.kpi-note{font-size:11px;color:#94a3b8;margin-top:5px}
+.two{grid-template-columns:1.2fr .8fr}.three{grid-template-columns:repeat(3,1fr)}
+.capacity{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center}
+.progress{height:12px;background:#edf1f6;border-radius:20px;overflow:hidden;margin:9px 0 15px}
+.bar{height:100%;border-radius:20px;background:#2563eb}
+.big{font-size:36px;font-weight:850}
+.chart-wrap{height:270px}
+.dept-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dept{border:1px solid #e5eaf1;border-radius:12px;padding:14px}
+.dept-name{font-weight:750}.muted{color:#718096;font-size:12px}
+.status{display:inline-block;padding:4px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-top:9px}
+.status.normal,.status.completed,.status.sent{background:#dcfce7;color:#166534}
+.status.warning,.status.running{background:#fef3c7;color:#92400e}
+.status.critical,.status.failed{background:#fee2e2;color:#991b1b}
+.status.idle{background:#e0e7ff;color:#3730a3}
+.list{display:flex;flex-direction:column;gap:10px}.item{border:1px solid #e5eaf1;border-radius:12px;padding:14px}
+.row{display:flex;justify-content:space-between;gap:12px;align-items:center}.title{font-weight:750}.small{font-size:12px;color:#64748b;line-height:1.5}
+button{border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-primary{background:#2563eb;color:#fff}.btn-danger{background:#dc2626;color:#fff}.btn-light{background:#eef2f7;color:#334155}
+.btn-primary:disabled,.btn-light:disabled{opacity:.55;cursor:not-allowed}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:11px;border-bottom:1px solid #edf0f4}th{font-size:11px;color:#64748b;text-transform:uppercase}
+.badge{padding:4px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#eef2ff;color:#3730a3}
+.empty{padding:22px;text-align:center;color:#94a3b8;font-size:13px}
+.error{color:#b91c1c;background:#fff1f2;border:1px solid #fecdd3;padding:10px;border-radius:9px;font-size:12px}
+.login-screen{position:fixed;inset:0;background:#101827;display:grid;place-items:center;z-index:20}
+.login-card{width:min(420px,calc(100% - 28px));background:#fff;border-radius:14px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.login-card h1{margin:0 0 8px;font-size:24px}.login-card p{color:#64748b;font-size:13px;margin:0 0 20px}
+.login-card label{display:block;font-size:12px;font-weight:700;margin:14px 0 6px}.login-card input{width:100%;padding:11px;border:1px solid #d8e0eb;border-radius:8px;font-size:14px}
+.login-card button{width:100%;margin-top:18px;background:#2563eb;color:#fff}.login-error{min-height:18px;color:#b91c1c;font-size:12px;margin-top:12px}
+footer{text-align:center;color:#94a3b8;font-size:11px;padding:30px}
+
+/* ---------- Agent Activity panel ---------- */
+.agent-panel{background:linear-gradient(135deg,#101827,#1e293b);color:#fff;border-radius:16px;padding:22px 24px;box-shadow:0 8px 24px rgba(16,24,39,.25)}
+.agent-panel-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px}
+.agent-name{font-size:19px;font-weight:800;display:flex;align-items:center;gap:8px}
+.agent-sub{font-size:12px;color:#94a3b8;margin-top:4px}
+.agent-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:20px}
+.agent-stat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px}
+.agent-stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8}
+.agent-stat-value{font-size:18px;font-weight:800;margin-top:5px}
+.agent-actions{display:flex;gap:10px;flex-wrap:wrap}
+.agent-panel .status{margin-top:0}
+
+/* ---------- Pipeline monitor ---------- */
+.pipeline{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.pipeline-stage{flex:1 1 130px;min-width:130px;border:1px solid #e5eaf1;border-radius:12px;padding:12px;text-align:center;position:relative;background:#fff}
+.pipeline-stage.completed{border-color:#bbf7d0;background:#f0fdf4}
+.pipeline-stage.running{border-color:#fde68a;background:#fffbeb}
+.pipeline-stage.failed{border-color:#fecaca;background:#fef2f2}
+.pipeline-stage.idle{border-color:#e5eaf1}
+.pipeline-icon{font-size:20px}
+.pipeline-name{font-size:12px;font-weight:700;margin-top:6px}
+.pipeline-duration{font-size:10px;color:#94a3b8;margin-top:4px}
+.pipeline-arrow{align-self:center;color:#cbd5e1;font-size:16px;flex:0 0 auto}
+
+/* ---------- Loading skeleton ---------- */
+.skeleton{background:linear-gradient(90deg,#eef1f6 25%,#e4e9f1 37%,#eef1f6 63%);background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:8px}
+@keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.skel-line{height:14px;margin-bottom:8px}
+.skel-card{height:64px}
+
+/* ---------- Modal ---------- */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;place-items:center;z-index:30;padding:20px}
+.modal-overlay.open{display:grid}
+.modal{background:#fff;border-radius:14px;max-width:820px;width:100%;max-height:88vh;overflow:auto;padding:0}
+.modal-header{position:sticky;top:0;background:#fff;padding:18px 22px;border-bottom:1px solid #e5eaf1;display:flex;justify-content:space-between;align-items:center}
+.modal-header h2{margin:0;font-size:18px}
+.modal-body{padding:20px 22px}
+.modal-close{background:#eef2f7;color:#334155;border-radius:8px;width:30px;height:30px;font-size:15px;line-height:1}
+
+.two{grid-template-columns:1.2fr .8fr}
+
+/* ---------- Tab navigation ---------- */
+.tabbar{background:#fff;border-bottom:1px solid #e5eaf1;position:sticky;top:66px;z-index:9;overflow-x:auto}
+.tabbar-inner{max-width:1450px;margin:auto;display:flex;gap:2px;padding:0 24px}
+.tab-btn{background:transparent;border:0;border-bottom:3px solid transparent;border-radius:0;padding:14px 16px;font-weight:700;font-size:13.5px;color:#64748b;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.tab-btn:hover{color:#172033;background:#f8fafc}
+.tab-btn.active{color:#2563eb;border-bottom-color:#2563eb}
+.tab-count{background:#eef2f7;color:#334155;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:20px}
+.tab-btn.active .tab-count{background:#dbeafe;color:#1d4ed8}
+.tab-count.alert{background:#fee2e2;color:#991b1b}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ---------- Escalation banner ---------- */
+.escalation-banner{display:none;background:#dc2626;color:#fff;padding:12px 24px;position:sticky;top:0;z-index:15;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.escalation-banner.show{display:block;animation:escalation-pulse 1.6s ease-in-out infinite}
+@keyframes escalation-pulse{0%,100%{background:#dc2626}50%{background:#b91c1c}}
+.escalation-inner{max-width:1450px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.escalation-text{font-weight:800;font-size:14px;display:flex;align-items:center;gap:10px}
+.escalation-icon{font-size:20px;animation:escalation-shake 0.8s ease-in-out infinite}
+@keyframes escalation-shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+.escalation-actions{display:flex;gap:8px}
+.escalation-actions button{background:#fff;color:#991b1b;font-weight:800}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.dept-grid{grid-template-columns:repeat(2,1fr)}.two,.three{grid-template-columns:1fr}.agent-stats{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.container{padding:14px}.kpis{grid-template-columns:repeat(2,1fr)}.dept-grid{grid-template-columns:1fr}header{padding:15px}.agent-stats{grid-template-columns:repeat(2,1fr)}.tabbar-inner{padding:0 14px}.tab-btn{padding:12px 11px;font-size:12.5px}}
+</style>
+</head>
+<body>
+<div id="loginScreen" class="login-screen">
+  <form id="loginForm" class="login-card">
+    <h1>AgentCare AI</h1>
+    <p>Manager sign in</p>
+    <label for="loginUsername">Username</label>
+    <input id="loginUsername" autocomplete="username" required>
+    <label for="loginPassword">Password</label>
+    <input id="loginPassword" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+    <div id="loginError" class="login-error"></div>
+  </form>
+</div>
+
+<header>
+  <div>
+    <div class="brand">🏥 AgentCare AI</div>
+    <div class="subtitle">Hospital Operations Monitoring & Decision Support</div>
+  </div>
+  <div class="header-right">
+    <span class="dot" id="connDot"></span><span id="connLabel">Connecting…</span>
+    <span>·</span><span>Last updated: <b id="lastUpdated">—</b></span>
+  </div>
+</header>
+
+<div class="escalation-banner" id="escalationBanner">
+  <div class="escalation-inner">
+    <div class="escalation-text"><span class="escalation-icon">🚨</span><span id="escalationBannerText">Critical incident unacknowledged</span></div>
+    <div class="escalation-actions">
+      <button onclick="showTab('incidents')">View Incidents</button>
+    </div>
+  </div>
+</div>
+
+<nav class="tabbar">
+  <div class="tabbar-inner">
+    <button class="tab-btn active" data-tab="agents" onclick="showTab('agents')">🤖 Agents <span class="tab-count" id="tabCountAgents">—</span></button>
+    <button class="tab-btn" data-tab="overview" onclick="showTab('overview')">🏥 Hospital Overview</button>
+    <button class="tab-btn" data-tab="incidents" onclick="showTab('incidents')">🚨 Incidents &amp; AI <span class="tab-count" id="tabCountIncidents">—</span></button>
+    <button class="tab-btn" data-tab="operations" onclick="showTab('operations')">⚙️ Operations</button>
+    <button class="tab-btn" data-tab="system" onclick="showTab('system')">🖥️ System</button>
+  </div>
+</nav>
+
+<main class="container">
+
+<!-- ============================================================ -->
+<!-- TAB: AGENTS -->
+<!-- ============================================================ -->
+<section class="tab-panel active" id="tab-agents">
+
+<!-- ============ AGENT ACTIVITY PANEL ============ -->
+<div class="section-title">🤖 Agent Activity</div>
+<div class="agent-panel">
+  <div class="agent-panel-top">
+    <div>
+      <div class="agent-name">📊 Daily Manager Report Agent <span class="status idle" id="agentStatusBadge">IDLE</span> <span class="tab-count" id="llmProviderBadge" style="background:rgba(255,255,255,.12);color:#fff">—</span></div>
+      <div class="agent-sub" id="agentSub">Loading status…</div>
+    </div>
+    <div class="agent-actions">
+      <button class="btn-primary" id="runNowBtn" onclick="runReportNow()">▶ Run Now</button>
+      <button class="btn-light" id="viewReportBtn" onclick="openReportModal()">📄 View Latest Report</button>
+      <button class="btn-light" id="checkEscalationsBtn" onclick="checkEscalationsNow()">🚨 Check Escalations Now</button>
+    </div>
+  </div>
+  <div class="agent-stats">
+    <div class="agent-stat"><div class="agent-stat-label">Last Execution</div><div class="agent-stat-value" id="agentLastExec">—</div></div>
+    <div class="agent-stat"><div class="agent-stat-label">Next Scheduled</div><div class="agent-stat-value" id="agentNextExec">—</div></div>
+    <div class="agent-stat"><div class="agent-stat-label">Report Date</div><div class="agent-stat-value" id="agentReportDate">—</div></div>
+    <div class="agent-stat"><div class="agent-stat-label">Incidents Found</div><div class="agent-stat-value" id="agentIncidents">—</div></div>
+    <div class="agent-stat"><div class="agent-stat-label">Recommendations</div><div class="agent-stat-value" id="agentRecs">—</div></div>
+  </div>
+</div>
+
+<!-- ============ PIPELINE MONITOR ============ -->
+<div class="section-title">🔗 Agent Pipeline Monitor</div>
+<div class="card"><div class="pipeline" id="pipelineBox">
+  <div class="empty">Loading pipeline…</div>
+</div></div>
+
+<!-- ============ REPORT DELIVERY STATUS ============ -->
+<div class="section-title">📧 Report Delivery Status</div>
+<div class="card"><div id="deliveryBox"><div class="empty">Loading delivery status…</div></div></div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- TAB: HOSPITAL OVERVIEW -->
+<!-- ============================================================ -->
+<section class="tab-panel" id="tab-overview">
+
+<div class="section-title">Hospital Overview</div>
+<div class="grid kpis" id="kpiCardsBox">
+  <div class="card"><div class="kpi-label">Total Beds</div><div class="kpi-value" id="totalBeds">—</div><div class="kpi-note">Hospital capacity</div></div>
+  <div class="card"><div class="kpi-label">Occupied Beds</div><div class="kpi-value" id="occupiedBeds">—</div><div class="kpi-note">Currently occupied</div></div>
+  <div class="card"><div class="kpi-label">Bed Occupancy</div><div class="kpi-value" id="bedOccupancy">—</div><div class="kpi-note">Current utilization</div></div>
+  <div class="card"><div class="kpi-label">ICU Occupancy</div><div class="kpi-value" id="icuOccupancy">—</div><div class="kpi-note">Critical care capacity</div></div>
+  <div class="card"><div class="kpi-label">Admissions / 24h</div><div class="kpi-value" id="admissions24">—</div><div class="kpi-note">Recent patient flow</div></div>
+  <div class="card"><div class="kpi-label">Active Alerts</div><div class="kpi-value" id="activeAlerts">—</div><div class="kpi-note">Requires monitoring</div></div>
+</div>
+
+<div class="section-title">🛏️ Hospital Capacity</div>
+<div class="grid two">
+  <div class="card">
+    <div class="row"><div><div class="title">Overall Bed Capacity</div><div class="muted">Occupied vs available</div></div><div class="big" id="capacityPercent">—</div></div>
+    <div class="progress"><div class="bar" id="capacityBar" style="width:0%"></div></div>
+    <div class="row"><span class="small">Occupied: <b id="capacityOccupied">—</b></span><span class="small">Available: <b id="capacityAvailable">—</b></span></div>
+  </div>
+  <div class="card">
+    <div class="row"><div><div class="title">ICU Capacity</div><div class="muted">30 ICU beds</div></div><div class="big" id="icuPercent">—</div></div>
+    <div class="progress"><div class="bar" id="icuBar" style="width:0%"></div></div>
+    <div class="row"><span class="small">Occupied: <b id="icuOccupied">—</b></span><span class="small">Available: <b id="icuAvailable">—</b></span></div>
+  </div>
+</div>
+
+<div class="section-title">📈 Patient Flow — Last 24 Hours</div>
+<div class="card chart-wrap"><canvas id="flowChart"></canvas></div>
+
+<div class="section-title">🏢 Department Status</div>
+<div class="card"><div id="departmentsBox" class="dept-grid"><div class="empty">Loading departments...</div></div></div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- TAB: INCIDENTS & AI -->
+<!-- ============================================================ -->
+<section class="tab-panel" id="tab-incidents">
+
+<div class="section-title">🚨 Critical Incidents</div>
+<div class="card"><div id="incidentsBox" class="list"><div class="empty">Loading incidents...</div></div></div>
+
+<div class="section-title">💡 AI Recommendations</div>
+<div class="card"><div id="recommendationsBox" class="list"><div class="empty">Loading recommendations...</div></div></div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- TAB: OPERATIONS -->
+<!-- ============================================================ -->
+<section class="tab-panel" id="tab-operations">
+
+<div class="section-title">⚙️ Inventory &amp; Staffing</div>
+<div class="grid two">
+  <div class="card">
+    <div class="title">💊 Medicine Inventory</div>
+    <div class="small" style="margin:5px 0 14px">Current stock and reorder status</div>
+    <div id="inventoryBox" class="list"><div class="empty">Loading inventory...</div></div>
+  </div>
+  <div class="card">
+    <div class="title">👩‍⚕️ Staff Availability</div>
+    <div class="small" style="margin:5px 0 14px">Department-level staffing</div>
+    <div id="staffBox" class="list"><div class="empty">Loading staff...</div></div>
+  </div>
+</div>
+
+<div class="section-title">📋 Recent Manager Actions</div>
+<div class="card" style="overflow:auto">
+<table>
+<thead><tr><th>ID</th><th>Action</th><th>Target</th><th>Comment</th><th>Time</th></tr></thead>
+<tbody id="actionsBody"><tr><td colspan="5" class="empty">Loading actions...</td></tr></tbody>
+</table>
+</div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- TAB: SYSTEM -->
+<!-- ============================================================ -->
+<section class="tab-panel" id="tab-system">
+
+<div class="section-title">🖥️ System Status</div>
+<div class="grid three">
+  <div class="card"><div class="kpi-label">Backend</div><div class="kpi-value" id="backendStatus">—</div></div>
+  <div class="card"><div class="kpi-label">Database</div><div class="kpi-value" id="databaseStatus">—</div></div>
+  <div class="card"><div class="kpi-label">Workflow Logs</div><div class="kpi-value" id="workflowCount">—</div></div>
+</div>
+
+</section>
+
+<div id="globalError" style="margin-top:18px"></div>
+</main>
+<footer>AgentCare AI • Hospital Operations Command Center • Auto-refreshing every 15 seconds</footer>
+
+<!-- ============ REPORT MODAL ============ -->
+<div class="modal-overlay" id="reportModalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📄 Latest Daily Manager Report</h2>
+      <button class="modal-close" onclick="closeReportModal()">✕</button>
+    </div>
+    <div class="modal-body" id="reportModalBody">
+      <div class="empty">Loading report…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:8002/api";
+let flowChart = null;
+let authToken = sessionStorage.getItem("agentcare_token");
+let consecutiveFailures = 0;
+let pollingTimer = null;
+
+function esc(v){
+  return String(v ?? "—").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+}
+function pct(v){ return `${Number(v ?? 0).toFixed(1)}%`; }
+function fmtTime(v){
+  if(!v) return "—";
+  try{
+    let s = String(v).trim();
+    // SQLite raw-SQL timestamps come back as "YYYY-MM-DD HH:MM:SS" (space
+    // separator, no timezone) instead of ISO format. All AgentCare
+    // timestamps are stored as naive UTC, so normalize to ISO + "Z" —
+    // otherwise the browser silently assumes they're already local time.
+    if(!s.includes("T")) s = s.replace(" ", "T");
+    if(!/[Zz]|[+-]\d{2}:?\d{2}$/.test(s)) s += "Z";
+    return new Date(s).toLocaleString();
+  }catch{ return v; }
+}
+function fmtDuration(sec){ if(sec==null) return "—"; if(sec<60) return `${sec.toFixed(1)}s`; return `${Math.floor(sec/60)}m ${Math.round(sec%60)}s`; }
+
+async function get(path){
+  const r = await fetch(API + path,{headers: authToken ? {Authorization:`Bearer ${authToken}`} : {}});
+  if(r.status === 401){
+    authToken = null;
+    sessionStorage.removeItem("agentcare_token");
+    stopPolling();
+    showLogin("Your session has expired. Please sign in again.");
+    throw new Error("Authentication required");
+  }
+  if(!r.ok){
+    let msg = await r.text();
+    throw new Error(`${r.status}: ${msg}`);
+  }
+  return r.json();
+}
+
+async function post(path, body){
+  const r = await fetch(API + path,{
+    method:"POST",
+    headers:{"Content-Type":"application/json",...(authToken ? {Authorization:`Bearer ${authToken}`} : {})},
+    body:JSON.stringify(body || {})
+  });
+  if(!r.ok){
+    let msg = await r.text();
+    throw new Error(`${r.status}: ${msg}`);
+  }
+  return r.json();
+}
+
+function showLogin(message=""){
+  document.getElementById("loginScreen").style.display="grid";
+  document.getElementById("loginError").textContent=message;
+}
+
+function startPolling(){
+  if(pollingTimer !== null) return;
+  loadAll();
+  pollingTimer = setInterval(loadAll, 15000);
+}
+
+function stopPolling(){
+  if(pollingTimer === null) return;
+  clearInterval(pollingTimer);
+  pollingTimer = null;
+}
+
+async function login(event){
+  event.preventDefault();
+  const error=document.getElementById("loginError");
+  error.textContent="";
+  const r=await fetch(API+"/auth/login",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({username:document.getElementById("loginUsername").value,password:document.getElementById("loginPassword").value})
+  });
+  if(!r.ok){error.textContent="Invalid username or password.";return;}
+  const data=await r.json();
+  authToken=data.access_token;
+  sessionStorage.setItem("agentcare_token",authToken);
+  document.getElementById("loginScreen").style.display="none";
+  startPolling();
+}
+
+document.getElementById("loginForm").addEventListener("submit",login);
+if(authToken){
+  // We already have a saved token from a previous login — hide the
+  // overlay immediately instead of showing it on every page refresh.
+  // If the token turns out to be expired/invalid, the first API call
+  // in loadAll() will get a 401 and get() will call showLogin() again.
+  document.getElementById("loginScreen").style.display = "none";
+} else {
+  showLogin();
+}
+
+// ================= TAB NAVIGATION =================
+
+function showTab(name){
+  document.querySelectorAll(".tab-panel").forEach(el=>el.classList.toggle("active", el.id === "tab-"+name));
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab === name));
+  window.scrollTo({top:0, behavior:"instant"});
+}
+
+// ================= AGENT ACTIVITY PANEL =================
+
+async function loadAgentStatus(){
+  const d = await get("/agent/report/status");
+  const badge = document.getElementById("agentStatusBadge");
+  const status = (d.status || "IDLE").toUpperCase();
+  badge.textContent = status;
+  badge.className = "status " + status.toLowerCase();
+
+  const subParts = [];
+  if(d.email_status) subParts.push(`Last email: ${esc(d.email_status)}`);
+  if(d.report_error) subParts.push(`Error: ${esc(d.report_error)}`);
+  document.getElementById("agentSub").textContent = subParts.length
+    ? subParts.join(" · ")
+    : "Generates the daily hospital operations report and emails it to managers.";
+
+  document.getElementById("agentLastExec").textContent = fmtTime(d.last_execution_time);
+  document.getElementById("agentNextExec").textContent = d.next_scheduled_label || "—";
+  document.getElementById("agentReportDate").textContent = d.report_date || "—";
+  document.getElementById("agentIncidents").textContent = d.incident_count ?? "—";
+  document.getElementById("agentRecs").textContent = d.recommendation_count ?? "—";
+
+  const llmBadge = document.getElementById("llmProviderBadge");
+  if(d.llm_active){
+    if(d.llm_last_error){
+      llmBadge.textContent = `⚠️ LLM: ${esc(d.llm_provider)} (last call failed)`;
+      llmBadge.style.background = "#dc262633";
+      llmBadge.style.color = "#fecaca";
+      llmBadge.title = d.llm_last_error;
+    } else {
+      llmBadge.textContent = `🤖 LLM: ${esc(d.llm_provider)}`;
+      llmBadge.style.background = "#7c3aed33";
+      llmBadge.style.color = "#ddd6fe";
+      llmBadge.title = "";
+    }
+  } else {
+    llmBadge.textContent = "📏 Rule-based (no LLM key set)";
+    llmBadge.style.background = "rgba(255,255,255,.12)";
+    llmBadge.style.color = "#cbd5e1";
+    llmBadge.title = "";
+  }
+
+  const tabBadge = document.getElementById("tabCountAgents");
+  tabBadge.textContent = status;
+  tabBadge.className = "tab-count" + (status === "FAILED" ? " alert" : "");
+}
+
+async function runReportNow(){
+  const btn = document.getElementById("runNowBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Running…";
+  try{
+    const result = await post("/agent/report/run-now");
+    await loadAgentStatus();
+    await loadPipeline();
+    await loadDelivery();
+    alert(`Report generated successfully. Email status: ${result.email_status}`);
+  }catch(e){
+    alert("Run Now failed: " + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "▶ Run Now";
+  }
+}
+
+async function checkEscalationsNow(){
+  const btn = document.getElementById("checkEscalationsBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Checking…";
+  try{
+    const result = await post("/escalations/check-now");
+    await loadEscalations();
+    alert(`Escalation check complete.\nNew escalations: ${result.escalated_new}\nReminders sent: ${result.reminders_sent}\nResolved: ${result.resolved}`);
+  }catch(e){
+    alert("Escalation check failed: " + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "🚨 Check Escalations Now";
+  }
+}
+
+const PIPELINE_ICONS = {
+  SimulationAgent: "🧪",
+  DataCleaningAgent: "🧹",
+  AnalysisAgent: "📐",
+  AlertDetectionAgent: "🚨",
+  RecommendationAgent: "💡",
+  DailyManagerReportAgent: "📊",
+  EmailDeliveryAgent: "📧",
+};
+
+async function loadPipeline(){
+  const data = await get("/agent/pipeline");
+  const box = document.getElementById("pipelineBox");
+  box.innerHTML = data.map((stage, i)=>{
+    const status = (stage.status || "IDLE").toLowerCase();
+    const arrow = i < data.length - 1 ? '<span class="pipeline-arrow">→</span>' : "";
+    return `<div class="pipeline-stage ${status}">
+      <div class="pipeline-icon">${PIPELINE_ICONS[stage.agent_name] || "⚙️"}</div>
+      <div class="pipeline-name">${esc(stage.display_name)}</div>
+      <span class="status ${status}" style="margin-top:6px">${esc(stage.status)}</span>
+      <div class="pipeline-duration">${fmtDuration(stage.duration_seconds)}</div>
+    </div>${arrow}`;
+  }).join("");
+}
+
+async function loadDelivery(){
+  const data = await get("/agent/report/history");
+  const box = document.getElementById("deliveryBox");
+  if(!data.length){ box.innerHTML = '<div class="empty">No reports have been generated yet. Click "Run Now" above to generate the first one.</div>'; return; }
+  const latest = data[0];
+  const recipientCount = latest.recipients ? latest.recipients.split(",").filter(x=>x.trim()).length : 0;
+  box.innerHTML = `
+    <div class="row" style="flex-wrap:wrap;gap:16px">
+      <div class="small">Report generated: <span class="status ${(latest.report_status||"").toLowerCase()}">${esc(latest.report_status)}</span></div>
+      <div class="small">Email status: <span class="status ${(latest.email_status||"").toLowerCase()}">${esc(latest.email_status||"SKIPPED")}</span></div>
+      <div class="small">Recipients: <b>${recipientCount}</b></div>
+      <div class="small">Sent at: <b>${fmtTime(latest.email_sent_time)}</b></div>
+      ${latest.retry_count ? `<div class="small">Retries: <b>${esc(latest.retry_count)}</b></div>` : ""}
+    </div>
+    ${latest.email_error ? `<div class="error" style="margin-top:10px">${esc(latest.email_error)}</div>` : ""}
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-size:12px;color:#64748b;font-weight:700;">Delivery history (${data.length})</summary>
+      <table style="margin-top:10px">
+        <thead><tr><th>Date</th><th>Trigger</th><th>Report</th><th>Email</th><th>Recipients</th></tr></thead>
+        <tbody>${data.map(r=>`<tr>
+          <td>${esc(r.report_date)}</td>
+          <td>${esc(r.triggered_by)}</td>
+          <td><span class="status ${(r.report_status||"").toLowerCase()}">${esc(r.report_status)}</span></td>
+          <td><span class="status ${(r.email_status||"").toLowerCase()}">${esc(r.email_status||"SKIPPED")}</span></td>
+          <td>${r.recipients ? r.recipients.split(",").length : 0}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+    </details>`;
+}
+
+function normalizeReportPayload(report){
+  if (!report) return {};
+  if (typeof report === "string") {
+    try { report = JSON.parse(report); } catch (err) { return {}; }
+  }
+  if (typeof report !== "object") return {};
+
+  const normalized = { ...report };
+  normalized.kpi_summary = normalized.kpi_summary || {};
+  normalized.incident_summary = normalized.incident_summary || {};
+  normalized.recommendation_summary = normalized.recommendation_summary || {};
+  normalized.manager_action_summary = normalized.manager_action_summary || {};
+  normalized.departments = normalized.departments || [];
+  normalized.incident_summary.incidents = normalized.incident_summary.incidents || [];
+  normalized.recommendation_summary.recommendations = normalized.recommendation_summary.recommendations || [];
+  normalized.manager_action_summary.actions = normalized.manager_action_summary.actions || [];
+  return normalized;
+}
+
+function reportSectionHtml(report){
+  const normalized = normalizeReportPayload(report);
+  const kpiRows = Object.entries(normalized.kpi_summary || {}).map(([name,v])=>
+    `<tr><td>${esc(name)}</td><td>${esc(v.average)}</td><td>${esc(v.minimum)}</td><td>${esc(v.maximum)}</td><td>${esc(v.observations)}</td></tr>`
+  ).join("") || `<tr><td colspan="5" class="empty">No KPI observations.</td></tr>`;
+
+  const incidentRows = (normalized.incident_summary?.incidents || []).map(i=>
+    `<tr><td>${esc(i.kpi_name)}</td><td>${esc(i.department_id)}</td><td><span class="status ${(i.severity||"").toLowerCase()}">${esc(i.severity)}</span></td><td>${esc(i.status)}</td></tr>`
+  ).join("") || `<tr><td colspan="4" class="empty">No incidents.</td></tr>`;
+
+  const recRows = (normalized.recommendation_summary?.recommendations || []).map(r=>{
+    const source = r.supporting_evidence?.source || "RULE_BASED";
+    const sourceLabel = source === "LLM" ? "🤖 LLM" : "📏 Rule-Based";
+    return `<tr><td>${esc(r.priority)}</td><td>${esc(r.text)}</td><td>${sourceLabel}</td><td>${esc(r.status)}</td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="empty">No recommendations.</td></tr>`;
+
+  const deptRows = (normalized.departments || []).map(d=>
+    `<tr><td>${esc(d.name)}</td><td>${esc(d.total_beds)}</td><td>${esc(d.total_icu_beds)}</td></tr>`
+  ).join("");
+
+  return `
+    <div class="small" style="margin-bottom:14px">Report date: <b>${esc(normalized.report_date)}</b> · generated ${fmtTime(normalized.generated_at)}</div>
+    <div class="card" style="background:#eff6ff;border-color:#dbeafe;margin-bottom:18px">
+      <div class="title" style="margin-bottom:6px">Executive Summary</div>
+      <div class="small">${esc(normalized.executive_summary)}</div>
+    </div>
+
+    <div class="title" style="margin-bottom:8px">Hospital KPIs</div>
+    <table style="margin-bottom:18px"><thead><tr><th>KPI</th><th>Avg</th><th>Min</th><th>Max</th><th>Obs</th></tr></thead><tbody>${kpiRows}</tbody></table>
+
+    <div class="title" style="margin-bottom:8px">Incidents (${normalized.incident_summary?.total ?? 0})</div>
+    <table style="margin-bottom:18px"><thead><tr><th>Incident</th><th>Dept</th><th>Severity</th><th>Status</th></tr></thead><tbody>${incidentRows}</tbody></table>
+
+    <div class="title" style="margin-bottom:8px">Recommendations (${normalized.recommendation_summary?.total ?? 0})</div>
+    <table style="margin-bottom:18px"><thead><tr><th>Priority</th><th>Recommendation</th><th>Source</th><th>Status</th></tr></thead><tbody>${recRows}</tbody></table>
+
+    <div class="title" style="margin-bottom:8px">Departments</div>
+    <table><thead><tr><th>Department</th><th>Beds</th><th>ICU Beds</th></tr></thead><tbody>${deptRows}</tbody></table>
+  `;
+}
+
+async function openReportModal(){
+  const overlay = document.getElementById("reportModalOverlay");
+  const body = document.getElementById("reportModalBody");
+  overlay.classList.add("open");
+  body.innerHTML = '<div class="skeleton skel-line" style="width:60%"></div><div class="skeleton skel-line" style="width:90%"></div><div class="skeleton skel-card"></div>';
+  try{
+    const data = await get("/agent/report/latest");
+    const report = normalizeReportPayload(data.report);
+    body.innerHTML = reportSectionHtml(report);
+  }catch(e){
+    body.innerHTML = `<div class="empty">No report has been generated yet. Click "Run Now" to generate one.</div>`;
+  }
+}
+function closeReportModal(){ document.getElementById("reportModalOverlay").classList.remove("open"); }
+document.getElementById("reportModalOverlay").addEventListener("click", (e)=>{ if(e.target.id==="reportModalOverlay") closeReportModal(); });
+
+// ================= EXISTING DASHBOARD SECTIONS =================
+
+async function loadSystem(){
+  const d = await get("/system/status");
+  const a = d.agent_data || {};
+  document.getElementById("backendStatus").textContent = d.backend || "ONLINE";
+  document.getElementById("databaseStatus").textContent = d.database || "CONNECTED";
+  document.getElementById("workflowCount").textContent = a.workflow_logs ?? "—";
+}
+
+async function loadSummary(){
+  const d = await get("/dashboard/summary");
+  const h = d.hospital || {
+    total_beds: d.total_beds,
+    occupied_beds: d.occupied_beds,
+    available_beds: d.total_beds - d.occupied_beds,
+    occupancy_percent: d.bed_occupancy
+  };
+  const icu = d.icu || {
+    total_beds: d.icu_total,
+    occupied_beds: d.icu_occupied,
+    available_beds: d.icu_total - d.icu_occupied,
+    occupancy_percent: d.icu_utilization
+  };
+  const pf = d.patient_flow || {
+    admissions_24h: d.admissions,
+    discharges_24h: d.discharges,
+    emergency_events_24h: d.emergency_events
+  };
+  const al = d.alerts || {
+    critical: d.critical_incidents,
+    warning: d.warning_incidents,
+    active: (d.critical_incidents || 0) + (d.warning_incidents || 0)
+  };
+
+  document.getElementById("totalBeds").textContent = h.total_beds ?? "—";
+  document.getElementById("occupiedBeds").textContent = h.occupied_beds ?? "—";
+  document.getElementById("bedOccupancy").textContent = pct(h.occupancy_percent);
+  document.getElementById("icuOccupancy").textContent = pct(icu.occupancy_percent ?? icu.utilization_percent);
+  document.getElementById("admissions24").textContent = pf.admissions_24h ?? 0;
+  document.getElementById("activeAlerts").textContent = al.active ?? 0;
+
+  document.getElementById("capacityPercent").textContent = pct(h.occupancy_percent);
+  document.getElementById("capacityOccupied").textContent = h.occupied_beds ?? 0;
+  document.getElementById("capacityAvailable").textContent = h.available_beds ?? 0;
+  document.getElementById("capacityBar").style.width = `${Math.min(100,Number(h.occupancy_percent||0))}%`;
+
+  const ip = Number(icu.occupancy_percent ?? icu.utilization_percent ?? 0);
+  document.getElementById("icuPercent").textContent = pct(ip);
+  document.getElementById("icuOccupied").textContent = icu.occupied_beds ?? 0;
+  document.getElementById("icuAvailable").textContent = icu.available_beds ?? 0;
+  document.getElementById("icuBar").style.width = `${Math.min(100,ip)}%`;
+
+  const ctx = document.getElementById("flowChart");
+  if(flowChart) flowChart.destroy();
+  flowChart = new Chart(ctx,{
+    type:"bar",
+    data:{labels:["Admissions","Discharges","Emergency Events"],
+      datasets:[{label:"Last 24 Hours",data:[pf.admissions_24h||0,pf.discharges_24h||0,pf.emergency_events_24h||0],borderWidth:1,backgroundColor:["#2563eb","#16a34a","#dc2626"]}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+  });
+}
+
+async function loadDepartments(){
+  const data = await get("/dashboard/departments");
+  const box = document.getElementById("departmentsBox");
+  const rows = Array.isArray(data) ? data : (data.departments || []);
+  if(!rows.length){box.innerHTML='<div class="empty">No department data.</div>';return;}
+  box.innerHTML = rows.map(x=>{
+    const name=x.name ?? x.department_name ?? "Department";
+    const occ=Number(x.occupancy ?? x.occupancy_percent ?? 0);
+    const status=(x.status ?? (occ>=95?"CRITICAL":occ>=85?"WARNING":"NORMAL")).toString().toLowerCase();
+    return `<div class="dept">
+      <div class="row"><div class="dept-name">${esc(name)}</div><div class="muted">${pct(occ)}</div></div>
+      <div class="progress"><div class="bar" style="width:${Math.min(100,occ)}%"></div></div>
+      <div class="small">Occupied: <b>${x.occupied_beds??0}</b> / ${x.total_beds??0}</div>
+      <span class="status ${status}">${status.toUpperCase()}</span>
+    </div>`;
+  }).join("");
+}
+
+async function loadIncidents(){
+  // Only show incidents still needing attention. Without this filter,
+  // acknowledged/resolved incidents stayed in this list forever, looking
+  // identical to untouched ones — clicking Acknowledge appeared to do nothing.
+  const data=await get("/incidents?status=OPEN");
+  const rows=Array.isArray(data)?data:(data.incidents||[]);
+  const box=document.getElementById("incidentsBox");
+
+  const tabBadge = document.getElementById("tabCountIncidents");
+  tabBadge.textContent = rows.length;
+  tabBadge.className = "tab-count" + (rows.length > 0 ? " alert" : "");
+
+  if(!rows.length){box.innerHTML='<div class="empty">No active incidents 🎉</div>';return;}
+  box.innerHTML=rows.map(x=>`
+    <div class="item">
+      <div class="row">
+        <div><div class="title">${esc(x.kpi_name||"Operational Incident")}</div>
+        <div class="small">Department: ${esc(x.department_id??"Hospital-wide")} • Severity: ${esc(x.severity)}</div></div>
+        <span class="status ${(x.severity||"normal").toLowerCase()}">${esc(x.severity||"NORMAL")}</span>
+      </div>
+      <div class="small" style="margin-top:8px">Trigger: <b>${esc(x.trigger_value)}</b> • Threshold: ${esc(x.threshold_value)} • Baseline: ${esc(x.baseline_value)}</div>
+      <div class="actions">
+        <button class="btn-light" onclick="managerAction('ACKNOWLEDGE','INCIDENT',${x.incident_id})">Acknowledge</button>
+        <button class="btn-danger" onclick="managerAction('RESOLVE','INCIDENT',${x.incident_id})">Resolve</button>
+      </div>
+    </div>`).join("");
+}
+
+async function loadRecommendations(){
+  const data=await get("/recommendations");
+  const rows=Array.isArray(data)?data:(data.recommendations||[]);
+  const box=document.getElementById("recommendationsBox");
+  if(!rows.length){box.innerHTML='<div class="empty">No pending recommendations.</div>';return;}
+  box.innerHTML=rows.map(x=>{
+    // supporting_evidence may come back as a JSON string (raw SQL) or already parsed
+    let evidence = x.supporting_evidence;
+    if(typeof evidence === "string"){ try{ evidence = JSON.parse(evidence); }catch{ evidence = null; } }
+    const source = evidence?.source || "RULE_BASED";
+    const reasoning = evidence?.reasoning;
+    const retrievedPolicy = evidence?.retrieved_policy;
+    const sourceBadge = source === "LLM"
+      ? `<span class="badge" style="background:#ede9fe;color:#5b21b6">🤖 LLM Reasoning</span>`
+      : `<span class="badge" style="background:#eef2f7;color:#475569">📏 Rule-Based</span>`;
+    const ragBadge = retrievedPolicy
+      ? `<span class="badge" style="background:#dbeafe;color:#1e40af" title="RAG similarity score: ${evidence.retrieval_score}">📚 ${esc(retrievedPolicy)}</span>`
+      : "";
+    return `
+    <div class="item">
+      <div class="row"><div class="title">Recommendation #${esc(x.recommendation_id)}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="badge">${esc(x.priority||"MEDIUM")}</span>${sourceBadge}${ragBadge}</div>
+      </div>
+      <div class="small" style="margin-top:8px">${esc(x.text||x.recommendation||"No recommendation text")}</div>
+      ${reasoning ? `<div class="small" style="margin-top:6px;font-style:italic;color:#7c3aed">Why: ${esc(reasoning)}</div>` : ""}
+      <div class="small" style="margin-top:7px">Status: <b>${esc(x.status)}</b> • Generated: ${fmtTime(x.generated_time)}</div>
+      <div class="actions">
+        <button class="btn-primary" onclick="managerAction('ACCEPT','RECOMMENDATION',${x.recommendation_id})">Accept</button>
+        <button class="btn-light" onclick="managerAction('REJECT','RECOMMENDATION',${x.recommendation_id})">Reject</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function loadInventory(){
+  const data=await get("/inventory");
+  const rows=Array.isArray(data)?data:(data.inventory||[]);
+  const box=document.getElementById("inventoryBox");
+  if(!rows.length){box.innerHTML='<div class="empty">No inventory data.</div>';return;}
+  box.innerHTML=rows.map(x=>{
+    const low=(x.status||"").toString().toLowerCase().includes("low") || Number(x.stock||0)<=Number(x.threshold||0);
+    return `<div class="item"><div class="row"><div><div class="title">${esc(x.name)}</div><div class="small">Stock: ${esc(x.stock)} ${esc(x.unit)} • Threshold: ${esc(x.threshold)}</div></div><span class="status ${low?"warning":"normal"}">${low?"LOW STOCK":"OK"}</span></div></div>`;
+  }).join("");
+}
+
+async function loadStaff(){
+  const data=await get("/staff");
+  const rows=Array.isArray(data)?data:(data.staff||[]);
+  const box=document.getElementById("staffBox");
+  if(!rows.length){box.innerHTML='<div class="empty">No staff data.</div>';return;}
+  box.innerHTML=rows.map(x=>`
+    <div class="item"><div class="row"><div><div class="title">${esc(x.name||x.department_name||"Department")}</div><div class="small">Total staff: ${x.total_staff??0}</div></div><span class="badge">${x.available_staff??0} available</span></div></div>`).join("");
+}
+
+async function loadActions(){
+  const data=await get("/manager-actions");
+  const rows=Array.isArray(data)?data:(data.actions||[]);
+  const body=document.getElementById("actionsBody");
+  if(!rows.length){body.innerHTML='<tr><td colspan="5" class="empty">No manager actions yet.</td></tr>';return;}
+  body.innerHTML=rows.slice(0,50).map(x=>`<tr><td>${esc(x.action_id)}</td><td><span class="badge">${esc(x.action_type)}</span></td><td>${esc(x.target_type)} #${esc(x.target_id)}</td><td>${esc(x.comment||"—")}</td><td>${fmtTime(x.action_time)}</td></tr>`).join("");
+}
+
+async function managerAction(action_type,target_type,target_id){
+  const comment=prompt(`Comment for ${action_type}:`) ?? "";
+  try{
+    await post("/manager-actions",{action_type,target_type,target_id,comment});
+    await loadIncidents(); await loadRecommendations(); await loadActions(); await loadSystem();
+    alert("Manager action recorded successfully.");
+  }catch(e){alert("Action failed: "+e.message);}
+}
+
+function setConnection(state){
+  const dot = document.getElementById("connDot");
+  const label = document.getElementById("connLabel");
+  dot.className = "dot" + (state==="online" ? "" : state==="connecting" ? " connecting" : " offline");
+  label.textContent = state==="online" ? "Live" : state==="connecting" ? "Connecting…" : "Connection lost — retrying";
+}
+
+// ================= CRITICAL INCIDENT ESCALATION =================
+
+let previousEscalationIds = new Set();
+let notificationPermissionRequested = false;
+
+function playEscalationBeep(){
+  // Short, generated alert tone — no external audio file needed.
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach(delay=>{
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.15, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.2);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.2);
+    });
+  }catch(e){ /* Web Audio not available — silently skip */ }
+}
+
+function fireEscalationNotification(count){
+  if(!("Notification" in window)) return;
+  if(Notification.permission === "granted"){
+    new Notification("🚨 AgentCare AI — Critical Incident Unacknowledged", {
+      body: count === 1
+        ? "1 critical incident has been unacknowledged past the threshold."
+        : `${count} critical incidents have been unacknowledged past the threshold.`,
+      requireInteraction: true,
+    });
+  } else if(Notification.permission !== "denied" && !notificationPermissionRequested){
+    notificationPermissionRequested = true;
+    Notification.requestPermission();
+  }
+}
+
+async function loadEscalations(){
+  const data = await get("/escalations/active");
+  const banner = document.getElementById("escalationBanner");
+  const text = document.getElementById("escalationBannerText");
+
+  if(!data.length){
+    banner.classList.remove("show");
+    previousEscalationIds = new Set();
+    return;
+  }
+
+  const currentIds = new Set(data.map(e => e.escalation_id));
+  const isNew = [...currentIds].some(id => !previousEscalationIds.has(id));
+
+  const label = data.length === 1
+    ? `1 CRITICAL incident unacknowledged (${data[0].kpi_name} — ${data[0].department_name || "Hospital-wide"})`
+    : `${data.length} CRITICAL incidents unacknowledged — immediate attention needed`;
+
+  text.textContent = label;
+  banner.classList.add("show");
+
+  // Only alert (sound + notification) when a genuinely NEW escalation
+  // appears, not on every 15-second poll of an already-known one.
+  if(isNew){
+    playEscalationBeep();
+    fireEscalationNotification(data.length);
+  }
+
+  previousEscalationIds = currentIds;
+}
+
+// ================= MAIN POLLING LOOP =================
+
+async function loadAll(){
+  const errors=[];
+  const jobs=[
+    ["Agent Status",loadAgentStatus],["Pipeline",loadPipeline],["Delivery",loadDelivery],
+    ["System",loadSystem],["Summary",loadSummary],["Departments",loadDepartments],
+    ["Incidents",loadIncidents],["Recommendations",loadRecommendations],
+    ["Inventory",loadInventory],["Staff",loadStaff],["Actions",loadActions],
+    ["Escalations",loadEscalations]
+  ];
+  for(const [name,fn] of jobs){
+    if(!authToken) return;
+    try{await fn()}catch(e){errors.push(`${name}: ${e.message}`);}
+  }
+  document.getElementById("lastUpdated").textContent=new Date().toLocaleTimeString();
+  document.getElementById("globalError").innerHTML=errors.length
+    ? `<div class="error"><b>Some sections could not be loaded:</b><br>${errors.map(esc).join("<br>")}</div>`
+    : "";
+
+  if(errors.length >= jobs.length){
+    consecutiveFailures++;
+    setConnection(consecutiveFailures >= 2 ? "offline" : "connecting");
+  } else {
+    consecutiveFailures = 0;
+    setConnection("online");
+  }
+}
+
+setConnection("connecting");
+if(authToken) startPolling();
+</script>
+</body>
+</html>
